@@ -18,7 +18,7 @@ Requires=klipper.service
 
 [Service]
 Type=simple
-User=pi
+User=mainsail
 ExecStart=/usr/local/bin/serial_listener
 Restart=always
 RestartSec=5

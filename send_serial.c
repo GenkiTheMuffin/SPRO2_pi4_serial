@@ -16,7 +16,7 @@
 #include <errno.h>
 
 /* ── Configuration ─────────────────────────────────────────────────────── */
-#define SERIAL_PORT "/dev/ttyPICO"
+#define SERIAL_PORT "/dev/ttyACM0"
 #define BAUD_RATE    B115200
 #define BUF_SIZE     256
 

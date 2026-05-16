@@ -19,9 +19,9 @@
 #include <signal.h>
 
 /* ── Configuration ─────────────────────────────────────────────────────── */
-#define SERIAL_PORT     "/dev/ttyPICO"
+#define SERIAL_PORT     "/dev/ttyACM0"
 #define BAUD_RATE       B115200
-#define KLIPPER_SOCKET  "/home/pi/printer_data/comms/klippy.sock"
+#define KLIPPER_SOCKET  "/home/mainsail/printer_data/comms/klippy.sock"
 #define BUF_SIZE        256
 
 /* ── Command map — Pico response → Klipper macro ───────────────────────── */
