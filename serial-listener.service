@@ -1,0 +1,27 @@
+# serial-listener.service
+# Runs the serial_listener daemon on boot, after Klipper starts.
+#
+# Install:
+#   sudo cp serial-listener.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable serial-listener
+#   sudo systemctl start serial-listener
+#
+# Check status:
+#   sudo systemctl status serial-listener
+#   journalctl -u serial-listener -f
+
+[Unit]
+Description=Pico 2 serial listener → Klipper macro bridge
+After=network.target klipper.service
+Requires=klipper.service
+
+[Service]
+Type=simple
+User=pi
+ExecStart=/usr/local/bin/serial_listener
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
