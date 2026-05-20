@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+
+"""
+translator.py
+
+USAGE:
+  python3 translator.py instructions.txt -o output.gcode
+OPTIONS:
+  --no-grip        Disables gripper use (no OPEN_JAW / CLOSE_JAW commands)
+  --wait           Insert WAIT_OK after grip commands from the Pico 2 (gripper)
+  --feed TRAVEL    Travel feed rate in mm/min (default 6000)
+  --feed-approach  Approach feed rate in mm/min (default 1200)
+  --hover-y        Hover Y coordinate (default 200)
+  --no-rotation    Disables gripper rotation
+"""
+
+import argparse
+import sys
+import re
+
+lego_stud_size = 7.8
+
+LINE_RE = re.compile(
+    r'^\s*'
+    r'(?P<sx>[+-]?\d+(?:\.\d+)?)\.'      # start X
+    r'(?P<sy>[+-]?\d+(?:\.\d+)?)\.'      # start Y
+    r'(?P<sz>[+-]?\d+(?:\.\d+)?)\/'      # start Z
+    r'(?P<srot>[0-9]+)'                  # start rotation
+    r'\s+to\s+'
+    r'(?P<dx>[+-]?\d+(?:\.\d+)?)\.'      # dest X
+    r'(?P<dy>[+-]?\d+(?:\.\d+)?)\.'      # dest Y
+    r'(?P<dz>[+-]?\d+(?:\.\d+)?)\/'      # dest Z
+    r'(?P<drot>[0-9]+)'                  # dest rotation
+    r'\s*$',
+    re.IGNORECASE
+)
+
+def parse_pairs(text):
+    # Split on semicolons, allow trailing semicolon.
+    parts = [p.strip() for p in text.split(';') if p.strip()]
+    pairs = []
+    for p in parts:
+        m = LINE_RE.match(p)
+        if not m:
+            raise ValueError(f"Invalid instruction format: '{p}'")
+        sx = float(m.group("sx"))
+        sy = float(m.group("sy"))
+        sz = float(m.group("sz"))
+        srot = int(m.group("srot"))
+
+        dx = float(m.group("dx"))
+        dy = float(m.group("dy"))
+        dz = float(m.group("dz"))
+        drot = int(m.group("drot"))
+
+
+        # Rotation input check (only 0 or 90 degrees allowed)
+        if srot not in (0, 90) or drot not in (0, 90):
+            raise ValueError("Rotation must be 0 or 90 degrees")
+
+        pairs.append(((sx, sy, sz, srot), (dx, dy, dz, drot)))
+
+    return pairs
+
+def emit_for_pair(start, dest, cfg):
+    sx, sy, sz, srot = start
+    dx, dy, dz, drot = dest
+    h = cfg.hover_y
+    t = []
+
+    # converts the LEGO stud size into mm for the printer #
+    sx, sy, sz, dx, dy, dz *= lego_stud_size
+
+    
+    # Move to hover above start
+    t.append(f"G1 X{sx:.3f} Y{h:.3f} Z{sz:.3f} F{cfg.feed_travel} ; move to hover above start {sx} {h} {sz}")
+
+    # Rotate at start
+    if not cfg.no_rotation:
+        t.append(f"JAW_ROTATE ANGLE={srot} ; rotate to {srot} degrees at start")
+
+    # Lower to start
+    t.append(f"G1 X{sx:.3f} Y{sy:.3f} Z{sz:.3f} F{cfg.feed_approach} ; lower to start {sx} {sy} {sz}")
+
+    # Close gripper if enabled
+    if not cfg.no_grip:
+        t.append("\nCLOSE_JAW ; close gripper")
+        if cfg.wait:
+            t.append("WAIT_OK")
+        t.append("") # empty line after
+
+    # Raise back to hover above start coordinates
+    t.append(f"G1 X{sx:.3f} Y{h:.3f} Z{sz:.3f} F{cfg.feed_travel} ; raise to hover above start {sx} {h} {sz}")
+
+    # Move to hover above dest
+    t.append(f"G1 X{dx:.3f} Y{h:.3f} Z{dz:.3f} F{cfg.feed_travel} ; move to hover above dest {dx} {h} {dz}")
+
+    # t destination
+    if not cfg.no_rotation:
+        t.append(f"JAW_ROTATE ANGLE={drot} ; rotate to {drot} degrees at destination")
+
+    # Lower to dest
+    t.append(f"G1 X{dx:.3f} Y{dy:.3f} Z{dz:.3f} F{cfg.feed_approach} ; lower to dest {dx} {dy} {dz}")
+
+    # Open gripper if enabled
+    if not cfg.no_grip:
+        t.append("\nOPEN_JAW ; open gripper")
+        if cfg.wait:
+            t.append("WAIT_OK")
+        t.append("") # empty line after
+    
+
+    # Raise to hover above dest
+    t.append(f"G1 X{dx:.3f} Y{h:.3f} Z{dz:.3f} F{cfg.feed_travel} ; raise to hover above dest {dx} {h} {dz}")
+    return t
+
+def main():
+    ap = argparse.ArgumentParser(description="Translate simple instructions to gcode.")
+    ap.add_argument('input', help="instructions.txt file")
+    ap.add_argument('-o', '--output', help="output gcode file, default stdout")
+    ap.add_argument('--no-grip', action='store_true', help="disables gripper use")
+    ap.add_argument('--wait', action='store_true', help="insert WAIT_OK after grip commands")
+    ap.add_argument('--feed', dest='feed_travel', type=int, default=6000, help="travel feed mm/min")
+    ap.add_argument('--feed-approach', dest='feed_approach', type=int, default=1200, help="approach feed mm/min")
+    ap.add_argument('--hover-y', dest='hover_y', type=float, default=200.0, help="hover Y coordinate")
+    ap.add_argument('--no-rotation', action='store_true', help="disables gripper rotation")
+    cfg = ap.parse_args()
+
+    try:
+        with open(cfg.input, 'r') as f:
+            raw = f.read()
+    except Exception as e:
+        print(f"Error reading input file: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        pairs = parse_pairs(raw)
+    except ValueError as e:
+        print(f"Parse error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    out_lines = []
+    out_lines.append("; Generated by translator.py")
+    out_lines.append("G21 ; set units to mm")
+    out_lines.append("G90 ; absolute positioning")
+    out_lines.append("G92 X0 Y0 Z0 ; set current position")
+    out_lines.append("\n\n")
+
+    for start, dest in pairs:
+        out_lines.extend(emit_for_pair(start, dest, cfg))
+        out_lines.append("\n\n")  # empty line between pairs
+
+    out_text = "\n".join(out_lines) + "\n"
+
+    if cfg.output:
+        try:
+            with open(cfg.output, 'w') as fo:
+                fo.write(out_text)
+        except Exception as e:
+            print(f"Error writing output file: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(out_text)
+
+if __name__ == '__main__':
+    main()
