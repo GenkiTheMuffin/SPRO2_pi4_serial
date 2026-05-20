@@ -16,7 +16,7 @@
 #include <errno.h>
 
 /* ── Configuration ─────────────────────────────────────────────────────── */
-#define SERIAL_PORT "/dev/ttyACM0"
+#define SERIAL_PORT "/dev/serial/by-id/usb-Raspberry_Pi_Pico_026AB59ED014A442-if00"
 #define BAUD_RATE    B115200
 #define BUF_SIZE     256
 
