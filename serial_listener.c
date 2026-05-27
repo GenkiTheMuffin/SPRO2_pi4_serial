@@ -33,6 +33,7 @@ typedef struct {
 static const CmdMap CMD_MAP[] = {
     { "JAW_OPENED",  "JAW_FULLY_OPEN"   },
     { "JAW_CLOSED",  "JAW_FULLY_CLOSED" },
+    { "STATUS_DONE", "STATUS_DONE"      },
     { NULL, NULL }   /* sentinel */
 };
 
