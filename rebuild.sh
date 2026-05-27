@@ -1,12 +1,11 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════════════
-# rebuild.sh — Stop services, recompile C, symlink Klipper cfg, restart
+# rebuild.sh — Stop services, recompile C, restart
 #
 # Usage:
-#   ./rebuild.sh              # do everything: C binaries + cfg symlink + restart
+#   ./rebuild.sh              # do everything: C binaries + restart
 #   ./rebuild.sh listener     # rebuild serial_listener only
 #   ./rebuild.sh sender       # rebuild send_serial only
-#   ./rebuild.sh cfg          # set up the cfg symlink only
 #   ./rebuild.sh -h           # help
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -18,14 +17,9 @@ INSTALL_DIR="/usr/local/bin"
 
 LISTENER_SRC="${SRC_DIR}/serial_listener.c"
 SENDER_SRC="${SRC_DIR}/send_serial.c"
-CFG_SRC="${SRC_DIR}/printer_jaw_macros.cfg"
 
 LISTENER_BIN="serial_listener"
 SENDER_BIN="send_serial"
-
-# Klipper cfg destination — change if your printer_data lives elsewhere
-KLIPPER_CFG_DIR="${HOME}/printer_data/config"
-CFG_DEST="${KLIPPER_CFG_DIR}/printer_jaw_macros.cfg"
 
 LISTENER_SERVICE="serial-listener"
 
@@ -41,7 +35,7 @@ error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 usage() {
-  grep '^#' "$0" | head -n 14 | sed 's/^# \{0,1\}//'
+  grep '^#' "$0" | head -n 12 | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -92,39 +86,6 @@ build_sender() {
   sudo chmod +x "${INSTALL_DIR}/${SENDER_BIN}"
 }
 
-setup_cfg_symlink() {
-  if [[ ! -f "${CFG_SRC}" ]]; then
-    error "Cannot find ${CFG_SRC}"
-    exit 1
-  fi
-  if [[ ! -d "${KLIPPER_CFG_DIR}" ]]; then
-    error "Klipper config dir ${KLIPPER_CFG_DIR} does not exist"
-    error "Edit KLIPPER_CFG_DIR at the top of rebuild.sh to point to the right place"
-    exit 1
-  fi
-
-  # Already a symlink pointing where we want? → nothing to do
-  if [[ -L "${CFG_DEST}" ]]; then
-    local current_target
-    current_target="$(readlink -f "${CFG_DEST}")"
-    if [[ "${current_target}" == "$(readlink -f "${CFG_SRC}")" ]]; then
-      info "Symlink already in place: ${CFG_DEST} → ${CFG_SRC}"
-      return 0
-    fi
-    warn "Existing symlink points elsewhere: ${current_target} — replacing"
-    rm "${CFG_DEST}"
-  elif [[ -f "${CFG_DEST}" ]]; then
-    # Regular file exists — back it up before replacing
-    local backup="${CFG_DEST}.bak.$(date +%Y%m%d_%H%M%S)"
-    warn "Existing file at ${CFG_DEST} — backing up to ${backup}"
-    mv "${CFG_DEST}" "${backup}"
-  fi
-
-  info "Creating symlink: ${CFG_DEST} → ${CFG_SRC}"
-  ln -s "${CFG_SRC}" "${CFG_DEST}"
-  info "Klipper will auto-detect changes when you save the file"
-}
-
 # ── Main ───────────────────────────────────────────────────────────────────
 case "${1:-all}" in
   -h|--help|help)
@@ -143,19 +104,12 @@ case "${1:-all}" in
     info "send_serial is invoked per-command by Klipper — no service to restart"
     ;;
 
-  cfg)
-    setup_cfg_symlink
-    info "To apply config changes in Klipper, run FIRMWARE_RESTART in the console"
-    ;;
-
   all|"")
     stop_service "${LISTENER_SERVICE}"
     kill_stale_senders
     build_listener
     build_sender
-    setup_cfg_symlink
     start_service "${LISTENER_SERVICE}"
-    info "To apply config changes in Klipper, run FIRMWARE_RESTART in the console"
     ;;
 
   *)
