@@ -1,11 +1,3 @@
-/* serial_listener.c
- * Runs as a daemon on the Pi 4.
- * Listens for responses from the Pico 2 over USB serial and
- * triggers the corresponding Klipper macro via the Klippy Unix socket.
- *
- * Build:   gcc -O2 -Wall -o serial_listener serial_listener.c
- * Install: sudo cp serial_listener /usr/local/bin/
- */
 
 #include <stdio.h>
 #include <stdlib.h>
