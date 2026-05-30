@@ -1,5 +1,0 @@
-python3 translator.py instructions.txt -o output.gcode (optional: --no-grip, --no-rotation, --wait, --feed TRAVEL, --feed-approach, --hover-y)
-
-(Inside the instruction.txt file: sX.sY.sZ/srot to dX.dY.dZ/drot = <starting coordinates/starting rotation> to <destination coordinates/destination rotation>,
-starting coordinates indicate the place from where to pick up and at what rotation (0° or 90°) the LEGO brick, destination coordinates indicate the place where to put the LEGO and at orientation (0° or 90°),
-each sX.sY.sZ/srot to dX.dY.dZ/drot instructions should be separated by a semicolon ( ; ).)
